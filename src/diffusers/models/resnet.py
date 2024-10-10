@@ -155,14 +155,14 @@ class ResnetBlockCondNorm2D(nn.Module):
 
         hidden_states = self.norm1(hidden_states, temb)
 
-        hidden_states = self.nonlinearity(hidden_states)
+        hidden_states = self.nonlinearity(hidden_states)# silu
 
         if self.upsample is not None:
             # upsample_nearest_nhwc fails with large batch sizes. see https://github.com/huggingface/diffusers/issues/984
             if hidden_states.shape[0] >= 64:
                 input_tensor = input_tensor.contiguous()
                 hidden_states = hidden_states.contiguous()
-            input_tensor = self.upsample(input_tensor)
+            input_tensor = self.upsample(input_tensor)  # conv
             hidden_states = self.upsample(hidden_states)
 
         elif self.downsample is not None:
@@ -332,22 +332,22 @@ class ResnetBlock2D(nn.Module):
             if hidden_states.shape[0] >= 64:
                 input_tensor = input_tensor.contiguous()
                 hidden_states = hidden_states.contiguous()
-            input_tensor = self.upsample(input_tensor)
+            input_tensor = self.upsample(input_tensor)  # conv
             hidden_states = self.upsample(hidden_states)
         elif self.downsample is not None:
             input_tensor = self.downsample(input_tensor)
             hidden_states = self.downsample(hidden_states)
 
-        hidden_states = self.conv1(hidden_states)
+        hidden_states = self.conv1(hidden_states) # gsc
 
         if self.time_emb_proj is not None:
             if not self.skip_time_act:
-                temb = self.nonlinearity(temb)
-            temb = self.time_emb_proj(temb)[:, :, None, None]
+                temb = self.nonlinearity(temb) # silu
+            temb = self.time_emb_proj(temb)[:, :, None, None] # linear 
 
         if self.time_embedding_norm == "default":
             if temb is not None:
-                hidden_states = hidden_states + temb
+                hidden_states = hidden_states + temb # add time embedding
             hidden_states = self.norm2(hidden_states)
         elif self.time_embedding_norm == "scale_shift":
             if temb is None:
@@ -359,16 +359,16 @@ class ResnetBlock2D(nn.Module):
             hidden_states = hidden_states * (1 + time_scale) + time_shift
         else:
             hidden_states = self.norm2(hidden_states)
-
+        # gsc
         hidden_states = self.nonlinearity(hidden_states)
 
         hidden_states = self.dropout(hidden_states)
         hidden_states = self.conv2(hidden_states)
 
         if self.conv_shortcut is not None:
-            input_tensor = self.conv_shortcut(input_tensor)
+            input_tensor = self.conv_shortcut(input_tensor) # don't have it in sd xl turbo
 
-        output_tensor = (input_tensor + hidden_states) / self.output_scale_factor
+        output_tensor = (input_tensor + hidden_states) / self.output_scale_factor # skip connections
 
         return output_tensor
 

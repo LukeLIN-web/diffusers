@@ -226,7 +226,7 @@ class UNet2DConditionModel(
     ):
         super().__init__()
 
-        self.sample_size = sample_size
+        self.sample_size = sample_size # sample_size 64
 
         if num_attention_heads is not None:
             raise ValueError(
@@ -349,7 +349,7 @@ class UNet2DConditionModel(
         # down
         output_channel = block_out_channels[0]
         for i, down_block_type in enumerate(down_block_types):
-            input_channel = output_channel
+            input_channel = output_channel # 
             output_channel = block_out_channels[i]
             is_final_block = i == len(block_out_channels) - 1
 
@@ -364,7 +364,7 @@ class UNet2DConditionModel(
                 resnet_eps=norm_eps,
                 resnet_act_fn=act_fn,
                 resnet_groups=norm_num_groups,
-                cross_attention_dim=cross_attention_dim[i],
+                cross_attention_dim=cross_attention_dim[i],  # 都是2048
                 num_attention_heads=num_attention_heads[i],
                 downsample_padding=downsample_padding,
                 dual_cross_attention=dual_cross_attention,
@@ -1166,7 +1166,7 @@ class UNet2DConditionModel(
         )
 
         # 2. pre-process
-        sample = self.conv_in(sample)
+        sample = self.conv_in(sample) # 第一个conv 层
 
         # 2.5 GLIGEN position net
         if cross_attention_kwargs is not None and cross_attention_kwargs.get("gligen", None) is not None:
@@ -1266,10 +1266,11 @@ class UNet2DConditionModel(
             sample = sample + mid_block_additional_residual
 
         # 5. up
+        # skip连接怎么看出来? 
         for i, upsample_block in enumerate(self.up_blocks):
             is_final_block = i == len(self.up_blocks) - 1
 
-            res_samples = down_block_res_samples[-len(upsample_block.resnets) :]
+            res_samples = down_block_res_samples[-len(upsample_block.resnets) :] # down的结果保存在这里? 
             down_block_res_samples = down_block_res_samples[: -len(upsample_block.resnets)]
 
             # if we have not reached the final block and need to forward the

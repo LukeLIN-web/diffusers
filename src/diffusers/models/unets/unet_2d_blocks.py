@@ -1209,7 +1209,7 @@ class CrossAttnDownBlock2D(nn.Module):
                         only_cross_attention=only_cross_attention,
                         upcast_attention=upcast_attention,
                         attention_type=attention_type,
-                    )
+                    ) # 加上transofrmer2DModel
                 )
             else:
                 attentions.append(
@@ -1255,7 +1255,7 @@ class CrossAttnDownBlock2D(nn.Module):
         output_states = ()
 
         blocks = list(zip(self.resnets, self.attentions))
-
+        #是这样交错的. 用zip.
         for i, (resnet, attn) in enumerate(blocks):
             if self.training and self.gradient_checkpointing:
 
@@ -2373,7 +2373,7 @@ class AttnUpBlock2D(nn.Module):
             # pop res hidden states
             res_hidden_states = res_hidden_states_tuple[-1]
             res_hidden_states_tuple = res_hidden_states_tuple[:-1]
-            hidden_states = torch.cat([hidden_states, res_hidden_states], dim=1)
+            hidden_states = torch.cat([hidden_states, res_hidden_states], dim=1) # concat起来. 
 
             hidden_states = resnet(hidden_states, temb)
             hidden_states = attn(hidden_states)

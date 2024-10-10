@@ -166,17 +166,17 @@ class Attention(nn.Module):
             )
 
         if norm_num_groups is not None:
-            self.group_norm = nn.GroupNorm(num_channels=query_dim, num_groups=norm_num_groups, eps=eps, affine=True)
+            self.group_norm = nn.GroupNorm(num_channels=query_dim, num_groups=norm_num_groups, eps=eps, affine=True) #用groupnorm,走这个分支
         else:
             self.group_norm = None
 
         if spatial_norm_dim is not None:
             self.spatial_norm = SpatialNorm(f_channels=query_dim, zq_channels=spatial_norm_dim)
         else:
-            self.spatial_norm = None
+            self.spatial_norm = None # 不用spatialnorm,走这个分支
 
         if qk_norm is None:
-            self.norm_q = None
+            self.norm_q = None # 不用qk norm,走这个分支
             self.norm_k = None
         elif qk_norm == "layer_norm":
             self.norm_q = nn.LayerNorm(dim_head, eps=eps)
@@ -195,7 +195,7 @@ class Attention(nn.Module):
             raise ValueError(f"unknown qk_norm: {qk_norm}. Should be None or 'layer_norm'")
 
         if cross_attention_norm is None:
-            self.norm_cross = None
+            self.norm_cross = None # 不用norm_cross,走这个分支
         elif cross_attention_norm == "layer_norm":
             self.norm_cross = nn.LayerNorm(self.cross_attention_dim)
         elif cross_attention_norm == "group_norm":
@@ -221,26 +221,26 @@ class Attention(nn.Module):
 
         if not self.only_cross_attention:
             # only relevant for the `AddedKVProcessor` classes
-            self.to_k = nn.Linear(self.cross_attention_dim, self.inner_kv_dim, bias=bias)
+            self.to_k = nn.Linear(self.cross_attention_dim, self.inner_kv_dim, bias=bias) #走这个分支
             self.to_v = nn.Linear(self.cross_attention_dim, self.inner_kv_dim, bias=bias)
         else:
             self.to_k = None
             self.to_v = None
 
         self.added_proj_bias = added_proj_bias
-        if self.added_kv_proj_dim is not None:
+        if self.added_kv_proj_dim is not None: # 不走这个分支
             self.add_k_proj = nn.Linear(added_kv_proj_dim, self.inner_kv_dim, bias=added_proj_bias)
             self.add_v_proj = nn.Linear(added_kv_proj_dim, self.inner_kv_dim, bias=added_proj_bias)
             if self.context_pre_only is not None:
                 self.add_q_proj = nn.Linear(added_kv_proj_dim, self.inner_dim, bias=added_proj_bias)
 
         if not self.pre_only:
-            self.to_out = nn.ModuleList([])
+            self.to_out = nn.ModuleList([]) # 走这个分支
             self.to_out.append(nn.Linear(self.inner_dim, self.out_dim, bias=out_bias))
             self.to_out.append(nn.Dropout(dropout))
 
         if self.context_pre_only is not None and not self.context_pre_only:
-            self.to_add_out = nn.Linear(self.inner_dim, self.out_dim, bias=out_bias)
+            self.to_add_out = nn.Linear(self.inner_dim, self.out_dim, bias=out_bias)# 不走这个分支
 
         if qk_norm is not None and added_kv_proj_dim is not None:
             if qk_norm == "fp32_layer_norm":
@@ -250,7 +250,7 @@ class Attention(nn.Module):
                 self.norm_added_q = RMSNorm(dim_head, eps=eps)
                 self.norm_added_k = RMSNorm(dim_head, eps=eps)
         else:
-            self.norm_added_q = None
+            self.norm_added_q = None# 走这个分支
             self.norm_added_k = None
 
         # set attention processor
@@ -2318,11 +2318,11 @@ class AttnProcessor2_0:
 
         residual = hidden_states
         if attn.spatial_norm is not None:
-            hidden_states = attn.spatial_norm(hidden_states, temb)
+            hidden_states = attn.spatial_norm(hidden_states, temb) #没有用到这个分支
 
         input_ndim = hidden_states.ndim
 
-        if input_ndim == 4:
+        if input_ndim == 4: #没有用到这个分支
             batch_size, channel, height, width = hidden_states.shape
             hidden_states = hidden_states.view(batch_size, channel, height * width).transpose(1, 2)
 
@@ -2330,19 +2330,19 @@ class AttnProcessor2_0:
             hidden_states.shape if encoder_hidden_states is None else encoder_hidden_states.shape
         )
 
-        if attention_mask is not None:
+        if attention_mask is not None: #没有用到这个分支
             attention_mask = attn.prepare_attention_mask(attention_mask, sequence_length, batch_size)
             # scaled_dot_product_attention expects attention_mask shape to be
             # (batch, heads, source_length, target_length)
             attention_mask = attention_mask.view(batch_size, attn.heads, -1, attention_mask.shape[-1])
 
-        if attn.group_norm is not None:
+        if attn.group_norm is not None: #没有用到这个分支
             hidden_states = attn.group_norm(hidden_states.transpose(1, 2)).transpose(1, 2)
 
-        query = attn.to_q(hidden_states)
+        query = attn.to_q(hidden_states) # linear proj
 
-        if encoder_hidden_states is None:
-            encoder_hidden_states = hidden_states
+        if encoder_hidden_states is None: 
+            encoder_hidden_states = hidden_states #用到这个分支
         elif attn.norm_cross:
             encoder_hidden_states = attn.norm_encoder_hidden_states(encoder_hidden_states)
 
@@ -2360,13 +2360,13 @@ class AttnProcessor2_0:
         if attn.norm_q is not None:
             query = attn.norm_q(query)
         if attn.norm_k is not None:
-            key = attn.norm_k(key)
+            key = attn.norm_k(key) #没用到这个分支
 
         # the output of sdp = (batch, num_heads, seq_len, head_dim)
         # TODO: add support for attn.scale when we move to Torch 2.1
         hidden_states = F.scaled_dot_product_attention(
             query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
-        )
+        ) # 这是torch 用cpp写的.  合并了 matmul, scale, softmax, 再matmul,
 
         hidden_states = hidden_states.transpose(1, 2).reshape(batch_size, -1, attn.heads * head_dim)
         hidden_states = hidden_states.to(query.dtype)
@@ -2376,10 +2376,10 @@ class AttnProcessor2_0:
         # dropout
         hidden_states = attn.to_out[1](hidden_states)
 
-        if input_ndim == 4:
+        if input_ndim == 4: #没用到这个分支
             hidden_states = hidden_states.transpose(-1, -2).reshape(batch_size, channel, height, width)
 
-        if attn.residual_connection:
+        if attn.residual_connection: #没用到这个分支
             hidden_states = hidden_states + residual
 
         hidden_states = hidden_states / attn.rescale_output_factor
